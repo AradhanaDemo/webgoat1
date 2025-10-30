@@ -50,10 +50,9 @@ public class Users {
         try (Connection connection = dataSource.getConnection()) {
             String query = "SELECT * FROM user_data";
 
-            try {
-                Statement statement = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            try (Statement statement = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
                         ResultSet.CONCUR_READ_ONLY);
-                ResultSet results = statement.executeQuery(query);
+                 ResultSet results = statement.executeQuery(query)) {
                 HashMap<Integer, HashMap> allUsersMap = new HashMap();
 
                 if ((results != null) && (results.first() == true)) {
@@ -89,16 +88,6 @@ public class Users {
                 return new HashMap<Integer, HashMap>() {{
                     put(0, errMap);
                 }};
-
-
-            } finally {
-                try {
-                    if (connection != null) {
-                        connection.close();
-                    }
-                } catch (SQLException sqle) {
-                    sqle.printStackTrace();
-                }
             }
 
         } catch (Exception e) {
