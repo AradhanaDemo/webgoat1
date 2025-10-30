@@ -89,6 +89,20 @@ public class MailboxControllerTest {
     }
 
     @Test
+    public void sendingMailWithoutAuthenticationShouldBeForbidden() throws Exception {
+        Email email = Email.builder()
+                .contents("This is a test mail")
+                .recipient("test1234@webgoat.org")
+                .sender("hacker@webgoat.org")
+                .title("Click this mail")
+                .time(LocalDateTime.now())
+                .build();
+        // Spring Security will redirect to login page with 302 status when authentication is required
+        this.mvc.perform(post("/mail").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsBytes(email)))
+                .andExpect(status().isFound());
+    }
+
+    @Test
     @WithMockUser(username = "test1234")
     public void userShouldBeAbleToReadOwnEmail() throws Exception {
         Email email = Email.builder()

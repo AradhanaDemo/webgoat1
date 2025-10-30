@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.users.UserService;
 import org.owasp.webgoat.users.WebGoatUser;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -80,7 +81,7 @@ public class MissingFunctionACUsers {
 
     @RequestMapping(path = {"users","/"}, method = RequestMethod.POST, consumes = "application/json", produces = "application/json")
     @ResponseBody
-    //@PreAuthorize()
+    @PreAuthorize("hasRole('ADMIN')")
     public WebGoatUser addUser(@RequestBody WebGoatUser newUser) {
         try {
             userService.addUser(newUser.getUsername(),newUser.getPassword());
