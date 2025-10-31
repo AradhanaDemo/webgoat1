@@ -57,8 +57,11 @@ public class StoredXssComments extends AssignmentEndpoint {
     private WebSession webSession;
     private static DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd, HH:mm:ss");
 
+    // Shared mutable state accessed by HTTP requests; guard with explicit locks
     private static final Map<String, List<Comment>> userComments = new HashMap<>();
     private static final List<Comment> comments = new ArrayList<>();
+    private static final Object USER_COMMENTS_LOCK = new Object();
+    private static final Object COMMENTS_LOCK = new Object();
     private static final String phoneHomeString = "<script>webgoat.customjs.phoneHome()</script>";
 
 
@@ -74,11 +77,20 @@ public class StoredXssComments extends AssignmentEndpoint {
     @ResponseBody
     public Collection<Comment> retrieveComments() {
         List<Comment> allComments = Lists.newArrayList();
-        Collection<Comment> newComments = userComments.get(webSession.getUserName());
-        allComments.addAll(comments);
-        if (newComments != null) {
-            allComments.addAll(newComments);
+
+        // Copy global comments under lock to avoid visibility/CME issues during iteration
+        synchronized (COMMENTS_LOCK) {
+            allComments.addAll(comments);
         }
+
+        // Copy user-specific comments under lock to avoid race conditions with concurrent writers
+        synchronized (USER_COMMENTS_LOCK) {
+            Collection<Comment> newComments = userComments.get(webSession.getUserName());
+            if (newComments != null) {
+                allComments.addAll(new ArrayList<>(newComments));
+            }
+        }
+
         Collections.reverse(allComments);
         return allComments;
     }
@@ -89,12 +101,20 @@ public class StoredXssComments extends AssignmentEndpoint {
     public AttackResult createNewComment(@RequestBody String commentStr) {
         Comment comment = parseJson(commentStr);
 
-        List<Comment> comments = userComments.getOrDefault(webSession.getUserName(), new ArrayList<>());
+        // Prepare the comment outside the lock
         comment.setDateTime(DateTime.now().toString(fmt));
-        comment.setUser(webSession.getUserName());
+        var userName = webSession.getUserName();
+        comment.setUser(userName);
 
-        comments.add(comment);
-        userComments.put(webSession.getUserName(), comments);
+        // Atomically read-modify-write the map and the user's list under a single lock
+        synchronized (USER_COMMENTS_LOCK) {
+            List<Comment> perUser = userComments.get(userName);
+            if (perUser == null) {
+                perUser = new ArrayList<>();
+                userComments.put(userName, perUser);
+            }
+            perUser.add(comment);
+        }
 
         if (comment.getText().contains(phoneHomeString)) {
             return (success(this).feedback("xss-stored-comment-success").build());
